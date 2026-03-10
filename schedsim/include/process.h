@@ -13,19 +13,6 @@ typedef struct {
     int time_in_queue;      // For MLFQ allotment tracking
 } Process;
 
-typedef struct {
-    int level;              // Queue priority level (0 = highest)
-    int time_quantum;       // Time slice for this queue (-1 for FCFS)
-    int allotment;          // Max time before demotion (-1 for infinite)
-    Process *queue;         // Array or linked list of processes
-    int size;               // Current queue size
-} MLFQQueue;
-
-typedef struct {
-    MLFQQueue *queues;      // Array of queues
-    int num_queues;         // Number of priority levels
-    int boost_period;       // Period for priority boost (S)
-    int last_boost;         // Last boost time
-} MLFQScheduler;
+Process parseInput(char *input);
 
 #endif
