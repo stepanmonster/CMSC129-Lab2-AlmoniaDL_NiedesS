@@ -18,13 +18,12 @@ typedef struct Event {
     struct Event *next;
 } Event;
 
-typedef enum{
+typedef enum {
     ALGO_FCFS,
     ALGO_SJF,
     ALGO_STCF,
-    ALGO_RR,
-    ALGO_MLFQ
-}SchedulingAlgorithm;
+    ALGO_RR
+} SchedulingAlgorithm;
 
 typedef struct {
     int level;              // Queue priority level (0 = highest)
@@ -42,28 +41,24 @@ typedef struct {
 } MLFQScheduler;
 
 typedef struct {
-    int num_queues;         // Number of priority levels
-    int *time_quantums;     // Time quantum for each level (-1 for FCFS)
-    int *allotments;        // Allotment for each level (-1 for infinite)
-    int boost_period;       // Period for priority boost (S)
-} MLFQConfig;
-
-typedef struct {
-    Process *processes;     // Array of all processes
-    int num_processes;      // Number of processes
-    int current_time;       // Current simulation time
-    GanttChart gantt;       // Gantt chart for visualization
-    int context_switches;   // Count of context switches
-    MLFQScheduler mlfq;       // MLFQ state (if using MLFQ)
-    // ... additional fields for metrics, Gantt chart, etc.
-    // Recall: CMSC 141
+    Process      *processes;     // Array of all processes
+    int           num_processes; // Number of processes
+    int           current_time;  // Current simulation time
+    GanttChart    gantt;         // Gantt chart for visualization
+    int           context_switches;
+    int           quantum;       // Time quantum for RR
 } SchedulerState;
 
-// Return 0 on success, -1 on error (command line etiquette)
+// Scheduling algorithms
 int schedule_fcfs(SchedulerState *state);
-int schedule_sjf(SchedulerState *state);
+int schedule_sjf (SchedulerState *state);
 int schedule_stcf(SchedulerState *state);
-int schedule_rr(SchedulerState *state, int quantum);
-int schedule_mlfq(SchedulerState *state, MLFQConfig *config);
+int schedule_rr  (SchedulerState *state, int quantum);
+
+// Simulation engine
+void simulate_scheduler(SchedulerState *state, SchedulingAlgorithm algorithm);
+
+// Utilities
+Process *parse_processes_from_string(const char *s, int *out_count);
 
 #endif

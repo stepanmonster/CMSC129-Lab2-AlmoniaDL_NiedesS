@@ -1,5 +1,5 @@
 CC     = gcc
-CFLAGS = -g -Wall -O0 -std=c99
+CFLAGS = -g -Wall -O0 -std=c99 -Iinclude
 
 # ─── Sources ─────────────────────────────────────────────────────────
 SOURCES = src/main.c     \
@@ -7,7 +7,6 @@ SOURCES = src/main.c     \
           src/sjf.c      \
           src/stcf.c     \
           src/rr.c       \
-          src/mlfq.c     \
           src/metrics.c  \
           src/gantt.c    \
           src/process.c  \
@@ -32,10 +31,13 @@ $(TARGET): $(OBJECTS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # ─── Cleanup ─────────────────────────────────────────────────────────
-.PHONY: all clean clean-objects
+.PHONY: all clean clean-objects test
 
 clean-objects:
 	rm -f $(OBJECTS)
 
 clean:
 	rm -f $(OBJECTS) $(TARGET)
+
+test: $(TARGET)
+	@bash tests/test_suite.sh
