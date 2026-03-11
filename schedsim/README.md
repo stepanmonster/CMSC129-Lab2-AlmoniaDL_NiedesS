@@ -11,7 +11,7 @@
 - Implement workload file parser and `--processes` string parser
 - Implement and test **FCFS** and **SJF**
 - Implement metrics calculation (`calculate_metrics()`) and basic table output
-- Write initial test workloads (`tests/workload1.txt`, `tests/quiz3.txt`)
+- Write initial test workloads (`tests/workload1.txt`)
 
 ---
 
