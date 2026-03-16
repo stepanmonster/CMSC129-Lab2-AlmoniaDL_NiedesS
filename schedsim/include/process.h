@@ -11,6 +11,8 @@ typedef struct {
     int waiting_time;       // Time spent waiting
     int priority;           // For MLFQ
     int time_in_queue;      // For MLFQ allotment tracking
+    int turnaround_time;
+    int response_time;
 } Process;
 
 Process parseInput(char *input);
