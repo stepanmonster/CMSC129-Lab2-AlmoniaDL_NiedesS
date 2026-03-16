@@ -3,6 +3,7 @@
 
 #include "process.h"
 #include "gantt.h"
+#include "metrics.h"
 
 typedef enum {
     EVENT_ARRIVAL,
@@ -49,14 +50,19 @@ typedef struct {
 } MLFQConfig;
 
 typedef struct {
-    Process *processes;     // Array of all processes
+    Process **processes;     // Array of all processes
     int num_processes;      // Number of processes
     int current_time;       // Current simulation time
     GanttChart gantt;       // Gantt chart for visualization
     int context_switches;   // Count of context switches
-    MLFQScheduler mlfq;       // MLFQ state (if using MLFQ)
-    // ... additional fields for metrics, Gantt chart, etc.
-    // Recall: CMSC 141
+    MLFQScheduler mlfq;       // MLFQ state (if using MLFQ) 
+    SummaryMetrics summary_metrics;
+    Process *current_process;
+    int cpu_busy;
+    Process **ready_queue;
+    int ready_count;
+    int ready_capacity;
+    Event *event_queue;
 } SchedulerState;
 
 // Return 0 on success, -1 on error (command line etiquette)
