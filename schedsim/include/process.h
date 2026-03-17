@@ -13,8 +13,10 @@ typedef struct {
     int time_in_queue;      // For MLFQ allotment tracking
     int turnaround_time;
     int response_time;
+    int last_scheduled_time;
 } Process;
 
 Process parseInput(char *input);
+Process* loadProcesses(const char *filename, int *out_count);
 
 #endif
