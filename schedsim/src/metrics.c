@@ -30,15 +30,15 @@ double avg_response_time(Process *processes, int n) {
 }
 
 void print_metrics_table(Process *processes, int n) {
-    printf("%-10s %10s %10s %10s %10s %10s\n",
-           "PID", "Arrival", "Burst", "Finish", "Turnaround", "Waiting");
-    printf("%-10s %10s %10s %10s %10s %10s\n",
-           "---", "-------", "-----", "------", "----------", "-------");
+    printf("%-10s %10s %10s %10s %10s %10s %10s\n",
+           "PID", "Arrival", "Burst", "Finish", "Turnaround", "Waiting", "Response");
+    printf("%-10s %10s %10s %10s %10s %10s %10s\n",
+           "---", "-------", "-----", "------", "----------", "-------", "--------");
     for (int i = 0; i < n; i++) {
         Process *p = &processes[i];
-        printf("%-10s %10d %10d %10d %10d %10d\n",
+        printf("%-10s %10d %10d %10d %10d %10d %10d\n",
                p->pid, p->arrival_time, p->burst_time,
-               p->finish_time, p->turnaround_time, p->waiting_time);
+               p->finish_time, p->turnaround_time, p->waiting_time, p->response_time);
     }
     printf("\nAverage Turnaround : %.2f\n", avg_turnaround_time(processes, n));
     printf("Average Waiting    : %.2f\n",   avg_waiting_time(processes, n));
