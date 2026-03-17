@@ -18,14 +18,6 @@ void gantt_add(GanttChart *g, const char *pid, int start, int end) {
         g->entries = realloc(g->entries, sizeof(GanttEntry) * g->capacity);
     }
 
-    // merge with last entry if same process runs consecutively
-    if (g->count > 0 &&
-        strcmp(g->entries[g->count - 1].pid, pid) == 0 &&
-        g->entries[g->count - 1].end == start) {
-        g->entries[g->count - 1].end = end;
-        return;
-    }
-
     strncpy(g->entries[g->count].pid, pid, 15);
     g->entries[g->count].start = start;
     g->entries[g->count].end   = end;
@@ -68,8 +60,8 @@ void gantt_print(GanttChart *g) {
         int width = (g->entries[i].end - g->entries[i].start) / scale;
         if (width < 1) width = 1;
 
-        // +1 for the [ bracket, +1 for the pid char
-        int pad = width + (int)strlen(g->entries[i].pid);
+        // [ + pid + dashes(width-1) + ] = 1 + strlen(pid) + (width-1) + 1 = width + strlen(pid) + 1
+        int pad = width + (int)strlen(g->entries[i].pid) + 1;
         printf("%*d", pad, g->entries[i].end);
     }
     printf("\n");

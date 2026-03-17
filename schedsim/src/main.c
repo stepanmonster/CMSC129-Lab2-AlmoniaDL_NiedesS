@@ -4,8 +4,6 @@
 #include "../include/scheduler.h"
 #include "../include/process.h"
 
-// Event queue helpers
-
 void add_event(Event **head, EventType type, int time, Process *proc) {
     Event *e = malloc(sizeof(Event));
     if (!e) return;
@@ -14,17 +12,26 @@ void add_event(Event **head, EventType type, int time, Process *proc) {
     e->process = proc;
     e->next    = NULL;
 
-    // Insert sorted by time (stable: ties keep insertion order)
+    // Priority: ARRIVAL=0 (first), QUANTUM_EXPIRE/COMPLETION=1 (second)
+    int new_priority = (type == EVENT_ARRIVAL) ? 0 : 1;
+
     if (*head == NULL || e->time < (*head)->time) {
         e->next = *head;
         *head   = e;
         return;
     }
+
     Event *cur = *head;
-    while (cur->next != NULL && cur->next->time <= e->time)
+    while (cur->next != NULL) {
+        int next_priority = (cur->next->type == EVENT_ARRIVAL) ? 0 : 1;
+        if (cur->next->time > e->time ||
+            (cur->next->time == e->time && next_priority >= new_priority))
+            break;
         cur = cur->next;
-    e->next    = cur->next;
-    cur->next  = e;
+    }
+
+    e->next   = cur->next;
+    cur->next = e;
 }
 
 void schedule_next_event(SchedulerState *state,
@@ -44,8 +51,6 @@ void schedule_next_event(SchedulerState *state,
               state->current_process);
 }
 
-// Ready queue helpers
-
 void handle_arrival(SchedulerState *state, Process *process) {
     if (state->ready_count == state->ready_capacity) {
         state->ready_capacity = (state->ready_capacity == 0) ? 4
@@ -64,12 +69,10 @@ void handle_completion(SchedulerState *state, Process *process) {
 void handle_quantum_expire(SchedulerState *state) {
     if (state->current_process == NULL) return;
 
-    // For MLFQ: account for time spent and handle demotion before re-queuing
     if (state->mlfq.queues != NULL) {
         int elapsed = state->current_time - state->current_process->last_scheduled_time;
         state->current_process->time_in_queue += elapsed;
         mlfq_adjust_priority(&state->mlfq, state->current_process);
-        // Re-enqueue into the (possibly updated) MLFQ queue
         enqueue(&state->mlfq.queues[state->current_process->priority],
                 state->current_process);
     } else {
@@ -80,7 +83,6 @@ void handle_quantum_expire(SchedulerState *state) {
     state->context_switches++;
 }
 
-// Record Gantt slices and subtract elapsed time from remaining_time
 void record_progress(SchedulerState *state, int next_time) {
     int duration = next_time - state->current_time;
     if (duration > 0 && state->current_process != NULL) {
@@ -95,18 +97,17 @@ void record_progress(SchedulerState *state, int next_time) {
 
 void simulate_scheduler(SchedulerState *state, SchedulingAlgorithm algorithm) {
     Event *event_queue = initialize_events(state);
-    printf("DEBUG num_processes=%d event_queue=%p\n", 
-           state->num_processes, (void*)event_queue);
 
     while (event_queue != NULL) {
         Event *current = pop_event(&event_queue);
-        if(current == NULL) break;
+        if (current == NULL) break;
 
-        // Advance Gantt - remaining_time up to this event 
-        record_progress(state, current->time);
-        state->current_time = current->time;
+        // Don't split the current Gantt slice for arrivals while CPU is busy
+        if (!(current->type == EVENT_ARRIVAL && state->current_process != NULL)) {
+            record_progress(state, current->time);
+            state->current_time = current->time;
+        }
 
-        // Skip stale completion/expiry events (process was preempted)
         if ((current->type == EVENT_COMPLETION ||
              current->type == EVENT_QUANTUM_EXPIRE) &&
             current->process != state->current_process) {
@@ -117,11 +118,9 @@ void simulate_scheduler(SchedulerState *state, SchedulingAlgorithm algorithm) {
         switch (current->type) {
             case EVENT_ARRIVAL:
                 if (algorithm == ALGO_MLFQ) {
-                    // New arrivals go to the top queue
                     current->process->priority      = 0;
                     current->process->time_in_queue = 0;
                     enqueue(&state->mlfq.queues[0], current->process);
-                    // MLFQ is preemptive on arrival
                     if (state->current_process != NULL) {
                         enqueue(&state->mlfq.queues[state->current_process->priority],
                                 state->current_process);
@@ -129,7 +128,6 @@ void simulate_scheduler(SchedulerState *state, SchedulingAlgorithm algorithm) {
                     }
                 } else {
                     handle_arrival(state, current->process);
-                    // STCF: preempt current if new arrival is shorter
                     if (algorithm == ALGO_STCF && state->current_process != NULL) {
                         if (current->process->remaining_time < state->current_process->remaining_time) {
                             handle_arrival(state, state->current_process);
@@ -144,16 +142,31 @@ void simulate_scheduler(SchedulerState *state, SchedulingAlgorithm algorithm) {
                 handle_completion(state, current->process);
                 break;
 
-            case EVENT_QUANTUM_EXPIRE:
-                handle_quantum_expire(state);
+            case EVENT_QUANTUM_EXPIRE: {
+                // Processes that arrived before this quantum started were already
+                // in the queue when the process was scheduled — the expiring process
+                // goes behind them. Mid-quantum arrivals (arrival_time > last_scheduled_time)
+                // go behind the expiring process.
+                int quantum_start = state->current_process->last_scheduled_time;
+                int insert_pos = 0;
+                for (int i = 0; i < state->ready_count; i++) {
+                    if (state->ready_queue[i]->arrival_time <= quantum_start)
+                        insert_pos = i + 1;
+                }
+                handle_quantum_expire(state); // appends expiring proc to back
+                // Shift expiring proc from back to insert_pos
+                Process *expired = state->ready_queue[state->ready_count - 1];
+                for (int i = state->ready_count - 1; i > insert_pos; i--)
+                    state->ready_queue[i] = state->ready_queue[i - 1];
+                state->ready_queue[insert_pos] = expired;
                 break;
+            }
 
             case EVENT_PRIORITY_BOOST:
                 boost_all_priorities(state);
                 break;
         }
 
-        // Pick the next process if the CPU is free
         if (state->current_process == NULL) {
             int status = -1;
             switch (algorithm) {
@@ -167,6 +180,7 @@ void simulate_scheduler(SchedulerState *state, SchedulingAlgorithm algorithm) {
             if (status == 0 && state->current_process != NULL) {
                 if (state->current_process->start_time == -1)
                     state->current_process->start_time = state->current_time;
+                state->current_process->last_scheduled_time = state->current_time;
                 schedule_next_event(state, algorithm, &event_queue);
             }
         }
@@ -177,7 +191,6 @@ void simulate_scheduler(SchedulerState *state, SchedulingAlgorithm algorithm) {
     print_results(state);
 }
 
-// Program entry point
 int main(int argc, char *argv[]) {
     char *input_file = NULL;
     char *algo_name  = NULL;
@@ -201,7 +214,6 @@ int main(int argc, char *argv[]) {
     SchedulerState state;
     memset(&state, 0, sizeof(SchedulerState));
 
-    /* Gantt chart */
     state.gantt = malloc(sizeof(GanttChart));
     gantt_init(state.gantt);
 
@@ -212,7 +224,6 @@ int main(int argc, char *argv[]) {
     SchedulingAlgorithm selected = get_algorithm_type(algo_name);
     if ((int)selected == -1) { free(process_list); return 1; }
 
-    // MLFQ-specific setup
     if (selected == ALGO_MLFQ) {
         state.mlfq_config = createConfig();
 
@@ -233,7 +244,6 @@ int main(int argc, char *argv[]) {
     printf("Running %s Scheduler...\n\n", algo_name);
     simulate_scheduler(&state, selected);
 
-    // Free memory 
     gantt_free(state.gantt);
     free(state.gantt);
     free(process_list);
