@@ -101,7 +101,10 @@ void simulate_scheduler(SchedulerState *state, SchedulingAlgorithm algorithm) {
     while (event_queue != NULL) {
         Event *current = pop_event(&event_queue);
         if (current == NULL) break;
-
+            if(algorithm == ALGO_STCF && current->type == EVENT_ARRIVAL){
+                record_progress(state, current->time);
+                state->current_time = current->time;
+            }
         // Don't split the current Gantt slice for arrivals while CPU is busy
         if (!(current->type == EVENT_ARRIVAL && state->current_process != NULL)) {
             record_progress(state, current->time);
