@@ -60,26 +60,9 @@ Event *pop_event(Event **event_queue) {
 
 // Move every process back to the top MLFQ queue 
 void boost_all_priorities(SchedulerState *state) {
-    MLFQScheduler *sched = &state->mlfq;
-    if (sched->queues == NULL) return;
-
-    // Move all processes from queues 1..N-1 up to queue 0
-    for (int i = 1; i < sched->num_queues; i++) {
-        while (sched->queues[i].size > 0) {
-            Process *p = dequeue(&sched->queues[i]);
-            p->priority     = 0;
-            p->time_in_queue = 0;
-            enqueue(&sched->queues[0], p);
-        }
-    }
-
-    // Also boost the currently running process if it isn't Q0
-    if (state->current_process != NULL && state->current_process->priority > 0) {
-        state->current_process->priority     = 0;
-        state->current_process->time_in_queue = 0;
-    }
-
-    sched->last_boost = state->current_time;
+    if (state->mlfq.queues == NULL) return;
+    
+    mlfq_priority_boost(&state->mlfq, state->current_time);
 }
 
 // Print final results (Gantt + metrics table + summary)

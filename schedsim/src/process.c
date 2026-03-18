@@ -28,10 +28,17 @@ Process parseProcess(char *input)
         p.arrival_time = atoi(args[1]);
         p.burst_time = atoi(args[2]);
         p.remaining_time = p.burst_time;
+        p.start_time = -1;           // Not started yet
+        p.finish_time = -1;           // Not finished yet
+        p.priority = 0;               // Highest priority initially
+        p.time_in_queue = 0;           // Time spent in current queue
+        p.last_scheduled_time = -1;    // Never scheduled
+        p.waiting_time = 0;
+        p.turnaround_time = 0;
+        p.response_time = 0;
     }
     return p;
 }
-
 Process* loadProcesses(const char *filename, int *out_count) 
 {
     int capacity = 10; 

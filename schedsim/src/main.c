@@ -121,13 +121,29 @@ void simulate_scheduler(SchedulerState *state, SchedulingAlgorithm algorithm) {
         switch (current->type) {
             case EVENT_ARRIVAL:
                 if (algorithm == ALGO_MLFQ) {
-                    current->process->priority      = 0;
+                    // Initialize process for MLFQ
+                    current->process->priority = 0;
                     current->process->time_in_queue = 0;
+                    current->process->last_scheduled_time = -1;
+                    
+                    // Add to highest priority queue
                     enqueue(&state->mlfq.queues[0], current->process);
+                    
+                    // Check if we need to preempt current process (MLFQ rules)
                     if (state->current_process != NULL) {
-                        enqueue(&state->mlfq.queues[state->current_process->priority],
+                        // In MLFQ, higher priority queues preempt lower ones
+                        if (state->current_process->priority > 0) {
+                            // Preempt the lower priority process
+                            int elapsed = state->current_time - state->current_process->last_scheduled_time;
+                            state->current_process->time_in_queue += elapsed;
+                            
+                            // Put current process back in its queue
+                            enqueue(&state->mlfq.queues[state->current_process->priority], 
                                 state->current_process);
-                        state->current_process = NULL;
+                            
+                            state->current_process = NULL;
+                            state->context_switches++;
+                        }
                     }
                 } else {
                     handle_arrival(state, current->process);
@@ -145,26 +161,39 @@ void simulate_scheduler(SchedulerState *state, SchedulingAlgorithm algorithm) {
                 handle_completion(state, current->process);
                 break;
 
-            case EVENT_QUANTUM_EXPIRE: {
-                // Processes that arrived before this quantum started were already
-                // in the queue when the process was scheduled — the expiring process
-                // goes behind them. Mid-quantum arrivals (arrival_time > last_scheduled_time)
-                // go behind the expiring process.
-                int quantum_start = state->current_process->last_scheduled_time;
-                int insert_pos = 0;
-                for (int i = 0; i < state->ready_count; i++) {
-                    if (state->ready_queue[i]->arrival_time <= quantum_start)
-                        insert_pos = i + 1;
+            case EVENT_QUANTUM_EXPIRE:
+                if (algorithm == ALGO_MLFQ) {
+                    // For MLFQ, handle quantum expiration
+                    if (state->current_process != NULL) {
+                        int elapsed = state->current_time - state->current_process->last_scheduled_time;
+                        state->current_process->time_in_queue += elapsed;
+                        
+                        // Adjust priority based on time in queue
+                        mlfq_adjust_priority(&state->mlfq, state->current_process);
+                        
+                        // Put process back in appropriate queue
+                        enqueue(&state->mlfq.queues[state->current_process->priority], 
+                            state->current_process);
+                        
+                        state->current_process = NULL;
+                        state->context_switches++;
+                    }
+                } else {
+                    // Original RR quantum expire handling
+                    int quantum_start = state->current_process->last_scheduled_time;
+                    int insert_pos = 0;
+                    for (int i = 0; i < state->ready_count; i++) {
+                        if (state->ready_queue[i]->arrival_time <= quantum_start)
+                            insert_pos = i + 1;
+                    }
+                    handle_quantum_expire(state);
+                    // Shift expiring proc from back to insert_pos
+                    Process *expired = state->ready_queue[state->ready_count - 1];
+                    for (int i = state->ready_count - 1; i > insert_pos; i--)
+                        state->ready_queue[i] = state->ready_queue[i - 1];
+                    state->ready_queue[insert_pos] = expired;
                 }
-                handle_quantum_expire(state); // appends expiring proc to back
-                // Shift expiring proc from back to insert_pos
-                Process *expired = state->ready_queue[state->ready_count - 1];
-                for (int i = state->ready_count - 1; i > insert_pos; i--)
-                    state->ready_queue[i] = state->ready_queue[i - 1];
-                state->ready_queue[insert_pos] = expired;
                 break;
-            }
-
             case EVENT_PRIORITY_BOOST:
                 boost_all_priorities(state);
                 break;
@@ -186,6 +215,9 @@ void simulate_scheduler(SchedulerState *state, SchedulingAlgorithm algorithm) {
                 state->current_process->last_scheduled_time = state->current_time;
                 schedule_next_event(state, algorithm, &event_queue);
             }
+        }
+            if (algorithm == ALGO_MLFQ && state->mlfq.queues != NULL) {
+            mlfq_priority_boost(&state->mlfq, state->current_time);
         }
         free(current);
     }

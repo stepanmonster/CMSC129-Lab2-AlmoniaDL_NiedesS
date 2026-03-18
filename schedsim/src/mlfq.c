@@ -62,12 +62,14 @@ void mlfq_adjust_priority(MLFQScheduler *scheduler, Process *p) {
 
 /* ── Priority boost: all processes → queue 0 ─────────────────────── */
 void mlfq_priority_boost(MLFQScheduler *scheduler, int current_time) {
+    if (scheduler == NULL || scheduler->queues == NULL) return;
+    
     if (current_time - scheduler->last_boost >= scheduler->boost_period) {
         for (int i = 1; i < scheduler->num_queues; i++) {
             MLFQQueue *queue = &scheduler->queues[i];
             while (queue->size > 0) {
                 Process *p = dequeue(queue);
-                p->priority      = 0;
+                p->priority = 0;
                 p->time_in_queue = 0;
                 enqueue(&scheduler->queues[0], p);
             }
@@ -75,7 +77,6 @@ void mlfq_priority_boost(MLFQScheduler *scheduler, int current_time) {
         scheduler->last_boost = current_time;
     }
 }
-
 /* ── Scheduler: pick the highest-priority non-empty queue ─────────── */
 int schedule_mlfq(SchedulerState *state, MLFQConfig *config) {
     MLFQScheduler *scheduler = &state->mlfq;
@@ -93,6 +94,7 @@ int schedule_mlfq(SchedulerState *state, MLFQConfig *config) {
     }
     return -1; /* Nothing ready */
 }
+
 
 /* ── Default 4-level MLFQ config ──────────────────────────────────── */
 MLFQConfig createConfig(void) {
