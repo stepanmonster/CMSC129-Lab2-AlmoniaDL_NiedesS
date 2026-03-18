@@ -68,3 +68,45 @@ Process* loadProcesses(const char *filename, int *out_count)
     *out_count = count;
     return processes;
 }
+
+Process* parseProcessString(char *input, int *out_count) {
+    int capacity = 10;
+    int count = 0;
+    Process *processes = malloc(capacity * sizeof(Process));
+    
+    // Use malloc + strcpy since we aren't using strdup
+    char *input_copy = malloc(strlen(input) + 1);
+    if (!input_copy) return NULL;
+    strcpy(input_copy, input);
+
+    // Outer loop: Split by commas
+    char *process_token = strtok(input_copy, ",");
+    while (process_token != NULL) {
+        if (count >= capacity) {
+            capacity *= 2;
+            processes = realloc(processes, capacity * sizeof(Process));
+        }
+
+        Process p;
+        memset(&p, 0, sizeof(Process));
+
+        // Use sscanf to parse "PID:Arrival:Burst" directly from the token
+        // %[^:] means "read everything that isn't a colon"
+        if (sscanf(process_token, "%[^:]:%d:%d", p.pid, &p.arrival_time, &p.burst_time) == 3) {
+            p.remaining_time = p.burst_time;
+            p.start_time = -1;
+            p.finish_time = -1;
+            p.priority = 0;
+            p.last_scheduled_time = -1;
+            
+            processes[count++] = p;
+        }
+
+        // Now strtok correctly finds the NEXT comma in input_copy
+        process_token = strtok(NULL, ",");
+    }
+
+    free(input_copy);
+    *out_count = count;
+    return processes;
+}

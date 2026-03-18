@@ -228,23 +228,36 @@ void simulate_scheduler(SchedulerState *state, SchedulingAlgorithm algorithm) {
 
 int main(int argc, char *argv[]) {
     char *input_file = NULL;
+    char *process_str = NULL;
     char *algo_name  = NULL;
-    int   quantum    = 30;
+    int    quantum    = 30;
 
     for (int i = 1; i < argc; i++) {
-        if      (strncmp(argv[i], "--input=",     8)  == 0) input_file = argv[i] + 8;
-        else if (strncmp(argv[i], "--algorithm=", 12) == 0) algo_name  = argv[i] + 12;
-        else if (strncmp(argv[i], "--quantum=",   10) == 0) quantum    = atoi(argv[i] + 10);
+        if      (strncmp(argv[i], "--input=",     8)  == 0) input_file  = argv[i] + 8;
+        else if (strncmp(argv[i], "--processes=", 12) == 0) process_str  = argv[i] + 12;
+        else if (strncmp(argv[i], "--algorithm=", 12) == 0) algo_name   = argv[i] + 12;
+        else if (strncmp(argv[i], "--quantum=",   10) == 0) quantum     = atoi(argv[i] + 10);
     }
 
-    if (!input_file || !algo_name) {
-        fprintf(stderr, "Usage: scheduler --input=<file> --algorithm=<FCFS|SJF|STCF|RR|MLFQ> [--quantum=<n>]\n");
+    // Validation: Need an algorithm AND (either a file OR a process string)
+    if (!algo_name || (!input_file && !process_str)) {
+        fprintf(stderr, "Usage: %s --algorithm=<ALGO> (--input=<file> | --processes=\"PID:Arr:Burst,...\") [--quantum=<n>]\n", argv[0]);
         return 1;
     }
 
     int count = 0;
-    Process *process_list = loadProcesses(input_file, &count);
-    if (!process_list) return 1;
+    Process *process_list = NULL;
+
+    if (input_file) {
+        process_list = loadProcesses(input_file, &count);
+    } else {
+        process_list = parseProcessString(process_str, &count);
+    }
+
+    if (!process_list || count == 0) {
+        fprintf(stderr, "Error: No processes loaded.\n");
+        return 1;
+    }
 
     SchedulerState state;
     memset(&state, 0, sizeof(SchedulerState));

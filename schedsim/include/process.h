@@ -18,5 +18,6 @@ typedef struct {
 
 Process parseInput(char *input);
 Process* loadProcesses(const char *filename, int *out_count);
+Process* parseProcessString(char *input, int *out_count);
 
 #endif
