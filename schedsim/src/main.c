@@ -6,16 +6,22 @@
 
 void add_event(Event **head, EventType type, int time, Process *proc) {
     Event *e = malloc(sizeof(Event));
-    if (!e) return;
+    if (!e) {
+        fprintf(stderr, "Error: out of memory in add_event\n");
+        exit(1);
+    }
     e->type    = type;
     e->time    = time;
     e->process = proc;
     e->next    = NULL;
 
-    // Priority: ARRIVAL=0 (first), QUANTUM_EXPIRE/COMPLETION=1 (second)
+    // Priority: ARRIVAL=0 (processed first), QUANTUM_EXPIRE/COMPLETION=1 (processed second)
     int new_priority = (type == EVENT_ARRIVAL) ? 0 : 1;
 
-    if (*head == NULL || e->time < (*head)->time) {
+    // Insert at head if: list is empty, new event is earlier, OR same time but higher priority
+    if (*head == NULL || e->time < (*head)->time ||
+        (e->time == (*head)->time &&
+         new_priority < ((*head)->type == EVENT_ARRIVAL ? 0 : 1))) {
         e->next = *head;
         *head   = e;
         return;
@@ -24,8 +30,9 @@ void add_event(Event **head, EventType type, int time, Process *proc) {
     Event *cur = *head;
     while (cur->next != NULL) {
         int next_priority = (cur->next->type == EVENT_ARRIVAL) ? 0 : 1;
+        // Use strict > so equal-priority events at the same time keep FIFO order
         if (cur->next->time > e->time ||
-            (cur->next->time == e->time && next_priority >= new_priority))
+            (cur->next->time == e->time && next_priority > new_priority))
             break;
         cur = cur->next;
     }
@@ -37,6 +44,10 @@ void add_event(Event **head, EventType type, int time, Process *proc) {
 void schedule_next_event(SchedulerState *state,
                          SchedulingAlgorithm algorithm,
                          Event **event_queue) {
+    if (state->current_process == NULL) {
+        fprintf(stderr, "Error: schedule_next_event called with no current process\n");
+        return;
+    }
     int time_to_run = state->current_process->remaining_time;
     EventType type  = EVENT_COMPLETION;
 
@@ -53,10 +64,14 @@ void schedule_next_event(SchedulerState *state,
 
 void handle_arrival(SchedulerState *state, Process *process) {
     if (state->ready_count == state->ready_capacity) {
-        state->ready_capacity = (state->ready_capacity == 0) ? 4
-                                                              : state->ready_capacity * 2;
-        state->ready_queue = realloc(state->ready_queue,
-                                     state->ready_capacity * sizeof(Process *));
+        int new_capacity = (state->ready_capacity == 0) ? 4 : state->ready_capacity * 2;
+        Process **tmp = realloc(state->ready_queue, new_capacity * sizeof(Process *));
+        if (!tmp) {
+            fprintf(stderr, "Error: out of memory in handle_arrival\n");
+            exit(1);
+        }
+        state->ready_queue    = tmp;
+        state->ready_capacity = new_capacity;
     }
     state->ready_queue[state->ready_count++] = process;
 }
@@ -70,7 +85,11 @@ void handle_quantum_expire(SchedulerState *state) {
     if (state->current_process == NULL) return;
 
     if (state->mlfq.queues != NULL) {
-        int elapsed = state->current_time - state->current_process->last_scheduled_time;
+        // last_scheduled_time is -1 if the process never ran (shouldn't normally
+        // happen here, but guarded to avoid computing a nonsense elapsed value).
+        int elapsed = (state->current_process->last_scheduled_time >= 0)
+                      ? state->current_time - state->current_process->last_scheduled_time
+                      : 0;
         state->current_process->time_in_queue += elapsed;
         mlfq_adjust_priority(&state->mlfq, state->current_process);
         enqueue(&state->mlfq.queues[state->current_process->priority],
@@ -81,6 +100,48 @@ void handle_quantum_expire(SchedulerState *state) {
 
     state->current_process = NULL;
     state->context_switches++;
+}
+
+// Handle RR quantum expiration as a single, self-contained operation.
+//
+// The original inline code in simulate_scheduler was fragile because it:
+//   1. Read current_process->last_scheduled_time and computed insert_pos,
+//   2. Then called handle_quantum_expire(), which NULLs current_process and
+//      appends the process to the back of ready_queue as a side effect,
+//   3. Then shifted the process from the back to insert_pos.
+//
+// All three steps are now combined here so the ordering and side-effects are
+// explicit and cannot be accidentally reordered by a future edit.
+//
+// RR semantics: an expired process should be placed after all processes that
+// were already in the ready queue when its quantum started (i.e., after any
+// process whose arrival_time <= quantum_start), but before any that arrived
+// during its quantum.
+void handle_rr_quantum_expire(SchedulerState *state) {
+    if (state->current_process == NULL) return;
+
+    // Step 1: capture identity of the expiring process and when its quantum
+    // started, before handle_quantum_expire() clears current_process.
+    Process *expiring    = state->current_process;
+    int      quantum_start = expiring->last_scheduled_time;
+
+    // Step 2: find the insertion position — after every process that was
+    // already waiting when this quantum began.
+    int insert_pos = 0;
+    for (int i = 0; i < state->ready_count; i++) {
+        if (state->ready_queue[i]->arrival_time <= quantum_start)
+            insert_pos = i + 1;
+    }
+
+    // Step 3: re-enqueue the expiring process at the back (handle_quantum_expire
+    // calls handle_arrival internally) and NULL out current_process.
+    handle_quantum_expire(state);   // appends expiring to ready_queue[ready_count-1]
+                                    // and sets current_process = NULL
+
+    // Step 4: slide the process from the back to insert_pos.
+    for (int i = state->ready_count - 1; i > insert_pos; i--)
+        state->ready_queue[i] = state->ready_queue[i - 1];
+    state->ready_queue[insert_pos] = expiring;
 }
 
 void record_progress(SchedulerState *state, int next_time) {
@@ -101,12 +162,16 @@ void simulate_scheduler(SchedulerState *state, SchedulingAlgorithm algorithm) {
     while (event_queue != NULL) {
         Event *current = pop_event(&event_queue);
         if (current == NULL) break;
-            if(algorithm == ALGO_STCF && current->type == EVENT_ARRIVAL){
-                record_progress(state, current->time);
-                state->current_time = current->time;
-            }
-        // Don't split the current Gantt slice for arrivals while CPU is busy
-        if (!(current->type == EVENT_ARRIVAL && state->current_process != NULL)) {
+
+        // Advance time and record CPU progress:
+        //  - For STCF arrivals, always record progress (preemption check follows below).
+        //  - For all other algorithms, skip recording on arrivals while CPU is busy
+        //    so the current Gantt slice is not split prematurely.
+        // These two branches are mutually exclusive; only one record_progress call fires.
+        if (algorithm == ALGO_STCF && current->type == EVENT_ARRIVAL) {
+            record_progress(state, current->time);
+            state->current_time = current->time;
+        } else if (!(current->type == EVENT_ARRIVAL && state->current_process != NULL)) {
             record_progress(state, current->time);
             state->current_time = current->time;
         }
@@ -134,7 +199,9 @@ void simulate_scheduler(SchedulerState *state, SchedulingAlgorithm algorithm) {
                         // In MLFQ, higher priority queues preempt lower ones
                         if (state->current_process->priority > 0) {
                             // Preempt the lower priority process
-                            int elapsed = state->current_time - state->current_process->last_scheduled_time;
+                            int elapsed = (state->current_process->last_scheduled_time >= 0)
+                                          ? state->current_time - state->current_process->last_scheduled_time
+                                          : 0;
                             state->current_process->time_in_queue += elapsed;
                             
                             // Put current process back in its queue
@@ -165,7 +232,9 @@ void simulate_scheduler(SchedulerState *state, SchedulingAlgorithm algorithm) {
                 if (algorithm == ALGO_MLFQ) {
                     // For MLFQ, handle quantum expiration
                     if (state->current_process != NULL) {
-                        int elapsed = state->current_time - state->current_process->last_scheduled_time;
+                        int elapsed = (state->current_process->last_scheduled_time >= 0)
+                                      ? state->current_time - state->current_process->last_scheduled_time
+                                      : 0;
                         state->current_process->time_in_queue += elapsed;
                         
                         // Adjust priority based on time in queue
@@ -179,19 +248,9 @@ void simulate_scheduler(SchedulerState *state, SchedulingAlgorithm algorithm) {
                         state->context_switches++;
                     }
                 } else {
-                    // Original RR quantum expire handling
-                    int quantum_start = state->current_process->last_scheduled_time;
-                    int insert_pos = 0;
-                    for (int i = 0; i < state->ready_count; i++) {
-                        if (state->ready_queue[i]->arrival_time <= quantum_start)
-                            insert_pos = i + 1;
-                    }
-                    handle_quantum_expire(state);
-                    // Shift expiring proc from back to insert_pos
-                    Process *expired = state->ready_queue[state->ready_count - 1];
-                    for (int i = state->ready_count - 1; i > insert_pos; i--)
-                        state->ready_queue[i] = state->ready_queue[i - 1];
-                    state->ready_queue[insert_pos] = expired;
+                    // RR quantum expiration: all fragile ordering and index
+                    // arithmetic is encapsulated in handle_rr_quantum_expire().
+                    handle_rr_quantum_expire(state);
                 }
                 break;
             case EVENT_PRIORITY_BOOST:
@@ -263,6 +322,11 @@ int main(int argc, char *argv[]) {
     memset(&state, 0, sizeof(SchedulerState));
 
     state.gantt = malloc(sizeof(GanttChart));
+    if (!state.gantt) {
+        fprintf(stderr, "Error: out of memory allocating GanttChart\n");
+        free(process_list);
+        return 1;
+    }
     gantt_init(state.gantt);
 
     state.processes     = process_list;
@@ -280,6 +344,12 @@ int main(int argc, char *argv[]) {
         sched->boost_period = state.mlfq_config.boost_period;
         sched->last_boost   = 0;
         sched->queues       = malloc(sizeof(MLFQQueue) * sched->num_queues);
+        if (!sched->queues) {
+            fprintf(stderr, "Error: out of memory allocating MLFQ queues\n");
+            free(process_list);
+            free(state.gantt);
+            return 1;
+        }
 
         for (int i = 0; i < sched->num_queues; i++) {
             mlfq_queue_init(&sched->queues[i],
