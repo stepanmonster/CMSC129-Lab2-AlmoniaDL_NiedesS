@@ -8,6 +8,10 @@ void gantt_init(GanttChart *g) {
     g->capacity = 64;
     g->count    = 0;
     g->entries  = malloc(sizeof(GanttEntry) * g->capacity);
+    if (!g->entries) {
+        fprintf(stderr, "Error: out of memory in gantt_init\n");
+        exit(1);
+    }
 }
 
 // ─── Add a new entry ─────────────────────────────────────────────────
@@ -15,7 +19,12 @@ void gantt_add(GanttChart *g, const char *pid, int start, int end) {
     // grow if needed
     if (g->count >= g->capacity) {
         g->capacity *= 2;
-        g->entries = realloc(g->entries, sizeof(GanttEntry) * g->capacity);
+        GanttEntry *tmp = realloc(g->entries, sizeof(GanttEntry) * g->capacity);
+        if (!tmp) {
+            fprintf(stderr, "Error: out of memory in gantt_add\n");
+            exit(1);
+        }
+        g->entries = tmp;
     }
 
     strncpy(g->entries[g->count].pid, pid, 15);

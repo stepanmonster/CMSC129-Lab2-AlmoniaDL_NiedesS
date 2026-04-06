@@ -84,6 +84,7 @@ void boost_all_priorities(SchedulerState *state);
 void handle_arrival(SchedulerState *state, Process *process);
 void handle_completion(SchedulerState *state, Process *process);
 void handle_quantum_expire(SchedulerState *state);
+void handle_rr_quantum_expire(SchedulerState *state);
 void record_progress(SchedulerState *state, int next_time);
 
 MLFQConfig createConfig(void);
