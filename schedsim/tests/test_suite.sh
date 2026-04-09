@@ -225,7 +225,6 @@ else
         fail "SJF: non-preemptive (no output)"
     fi
 fi
-TOTAL=$((TOTAL+1))
 
 # ---------------------------------------------------------------------------
 # 4. STCF — shortest time-to-completion (preemptive)
@@ -252,7 +251,6 @@ if [[ -n "$B_FIN" && -n "$A_FIN" ]] && [[ "$B_FIN" -lt "$A_FIN" ]]; then
 else
     pass "STCF: preemption check skipped (field parse uncertain)"
 fi
-TOTAL=$((TOTAL+1))
 
 # ---------------------------------------------------------------------------
 # 5. RR — Round Robin
@@ -305,7 +303,6 @@ if [[ -n "$B_FIN" ]] && [[ "$B_FIN" -le 15 ]]; then
 else
     pass "MLFQ: short job finish check skipped (field parse uncertain, finish='$B_FIN')"
 fi
-TOTAL=$((TOTAL+1))
 
 assert_contains "MLFQ: context switches present" "Context switches" \
     --algorithm=MLFQ "--processes=$MLFQ_PROCS"
@@ -419,7 +416,6 @@ for algo in FCFS SJF STCF MLFQ; do
     else
         fail "$algo: avg turnaround should be > 0  (got '$AVG_TT')"
     fi
-    TOTAL=$((TOTAL+1))
 done
 
 # avg waiting >= 0
@@ -431,7 +427,6 @@ for algo in FCFS SJF STCF MLFQ; do
     else
         fail "$algo: avg waiting should be >= 0  (got '$AVG_WT')"
     fi
-    TOTAL=$((TOTAL+1))
 done
 
 # CPU utilisation > 0
@@ -443,7 +438,6 @@ for algo in FCFS RR MLFQ; do
     else
         fail "$algo: CPU utilisation should be > 0%  (got '$UTIL')"
     fi
-    TOTAL=$((TOTAL+1))
 done
 
 # Context switches = 0 for a single process (non-preemptive / no priority boosts)
@@ -457,19 +451,18 @@ for algo in FCFS SJF STCF; do
     else
         fail "$algo: expected 0 context switches for single process, got '$CS'"
     fi
-    TOTAL=$((TOTAL+1))
 done
 
-# MLFQ single process: context switches should be a non-negative integer
-# (boost events will fire, so CS >= 0 is the only invariant we can assert)
+# MLFQ single process: priority boosts fire periodically and re-enqueue the
+# running process, so CS > 0 is expected. We just verify the field is present
+# and is a valid non-negative integer (i.e. the scheduler ran and reported it).
 MOUT=$(run --algorithm=MLFQ "--processes=One:0:100")
 CS=$(echo "$MOUT" | grep -oP 'Context switches\s*:\s*\K[0-9]+' | head -1 || true)
-if [[ -n "$CS" ]] && [[ "$CS" -ge 0 ]]; then
-    pass "MLFQ: context switches >= 0 for single process (got $CS; boosts expected)"
+if [[ -n "$CS" ]]; then
+    pass "MLFQ: context switches field present for single process (got $CS; boosts fire even with 1 process)"
 else
-    fail "MLFQ: context switches field missing or negative for single process (got '$CS')"
+    fail "MLFQ: context switches field missing for single process"
 fi
-TOTAL=$((TOTAL+1))
 
 # ---------------------------------------------------------------------------
 # 11. Determinism — same input produces same output
@@ -486,7 +479,6 @@ for algo in FCFS SJF STCF MLFQ; do
     else
         fail "$algo: non-deterministic output"
     fi
-    TOTAL=$((TOTAL+1))
 done
 
 OUT1=$(run --algorithm=RR --quantum=15 "--processes=$DET_PROCS")
@@ -496,7 +488,6 @@ if [[ "$OUT1" == "$OUT2" ]]; then
 else
     fail "RR: non-deterministic output"
 fi
-TOTAL=$((TOTAL+1))
 
 # ---------------------------------------------------------------------------
 # Results
