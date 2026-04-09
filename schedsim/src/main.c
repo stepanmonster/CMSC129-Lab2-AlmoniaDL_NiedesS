@@ -98,8 +98,17 @@ void handle_quantum_expire(SchedulerState *state) {
         handle_arrival(state, state->current_process);
     }
 
-    state->current_process = NULL;
-    state->context_switches++;
+    {
+    int has_other = 0;
+    if (state->mlfq.queues != NULL) {
+        for (int _qi = 0; _qi < state->mlfq.num_queues && !has_other; _qi++)
+            has_other = (state->mlfq.queues[_qi].size > 0);
+    } else {
+        has_other = (state->ready_count > 0);
+    }
+    if (has_other) state->context_switches++;
+}
+state->current_process = NULL;
 }
 
 // Handle RR quantum expiration as a single, self-contained operation.
