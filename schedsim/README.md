@@ -40,7 +40,7 @@ make clean      # Remove previous build artifacts
 make all        # Build the main executable and test suite
 ```
 
-The compiled binary will be placed at `./bin/scheduler`.
+The compiled binary will be placed at `./schedsim`.
 
 ---
 
