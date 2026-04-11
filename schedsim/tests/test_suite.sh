@@ -166,7 +166,7 @@ assert_contains "Unknown algorithm → error message" "Unknown" \
 # ---------------------------------------------------------------------------
 header "2. FCFS"
 
-PROCS="A:0:10,B:0:20,C:0:30"
+PROCS="A,0,10 B,0,20 C,0,30"
 
 assert_contains "FCFS: reports algorithm" "FCFS" \
     --algorithm=FCFS "--processes=$PROCS"
@@ -190,7 +190,7 @@ assert_contains "FCFS: correct avg TT for equal-arrival burst order" "33.33" \
 
 # Single process — trivial case
 assert_contains "FCFS: single process finishes cleanly" "Summary" \
-    --algorithm=FCFS "--processes=X:0:100"
+    --algorithm=FCFS "--processes=X,0,100"
 
 # ---------------------------------------------------------------------------
 # 3. SJF — shortest-job-first (non-preemptive)
@@ -198,7 +198,7 @@ assert_contains "FCFS: single process finishes cleanly" "Summary" \
 header "3. SJF"
 
 # A(0,10), B(0,30), C(0,20) → order should be A, C, B
-SJF_PROCS="A:0:10,B:0:30,C:0:20"
+SJF_PROCS="A,0,10 B,0,30 C,0,20"
 
 assert_contains "SJF: runs shorter job first" "SJF" \
     --algorithm=SJF "--processes=$SJF_PROCS"
@@ -209,11 +209,11 @@ assert_contains "SJF: correct average turnaround" "33.33" \
 
 # Tie-break: alphabetical PID — P1 before P2
 assert_contains "SJF: tie-break alphabetical by PID" "P1" \
-    --algorithm=SJF "--processes=P1:0:50,P2:0:50"
+    --algorithm=SJF "--processes=P1,0,50 P2,0,50"
 
 # SJF is non-preemptive: a later shorter job does NOT preempt running one
 # A(0,100) starts; B arrives at t=5 with burst=1 but cannot preempt A
-SJF_NP="A:0:100,B:5:1"
+SJF_NP="A,0,100 B,5,1"
 SJF_NP_OUTPUT=$(run --algorithm=SJF "--processes=$SJF_NP")
 A_FINISH=$(echo "$SJF_NP_OUTPUT" | grep -E "^A\s" | awk '{print $4}' || true)
 if [[ "$A_FINISH" == "100" ]]; then
@@ -232,7 +232,7 @@ fi
 header "4. STCF"
 
 # A(0,10) B(5,2): B arrives at t=5 with remaining=2 < A's remaining=5 → preempt
-STCF_PROCS="A:0:10,B:5:2"
+STCF_PROCS="A,0,10 B,5,2"
 
 assert_contains "STCF: output produced" "Summary" \
     --algorithm=STCF "--processes=$STCF_PROCS"
@@ -257,7 +257,7 @@ fi
 # ---------------------------------------------------------------------------
 header "5. RR"
 
-RR_PROCS="A:0:50,B:0:50,C:0:50"
+RR_PROCS="A,0,50 B,0,50 C,0,50"
 
 assert_contains "RR: output produced" "Summary" \
     --algorithm=RR --quantum=10 "--processes=$RR_PROCS"
@@ -279,14 +279,14 @@ assert_contains "RR: large quantum reduces to FCFS-like" "Summary" \
 
 # Single process with RR
 assert_contains "RR: single process" "Summary" \
-    --algorithm=RR --quantum=10 "--processes=Only:0:35"
+    --algorithm=RR --quantum=10 "--processes=Only,0,35"
 
 # ---------------------------------------------------------------------------
 # 6. MLFQ
 # ---------------------------------------------------------------------------
 header "6. MLFQ"
 
-MLFQ_PROCS="A:0:500,B:0:5,C:0:25"
+MLFQ_PROCS="A,0,500 B,0,5 C,0,25"
 
 assert_contains "MLFQ: output produced" "Summary" \
     --algorithm=MLFQ "--processes=$MLFQ_PROCS"
@@ -309,7 +309,7 @@ assert_contains "MLFQ: context switches present" "Context switches" \
 
 # Priority boost should keep CPU-bound processes from starving
 assert_contains "MLFQ: long-burst process still completes" "Summary" \
-    --algorithm=MLFQ "--processes=Long:0:2000,Short:100:5"
+    --algorithm=MLFQ "--processes=Long,0,2000 Short,100,5"
 
 # ---------------------------------------------------------------------------
 # 7. File-based input (workload1.txt / workload2.txt)
@@ -344,16 +344,16 @@ fi
 header "8. Compare Mode"
 
 assert_contains "--compare with processes string: header present" "Algorithm" \
-    --compare "--processes=A:0:100,B:5:50,C:10:200" --quantum=20
+    --compare "--processes=A,0,100 B,5,50 C,10,200" --quantum=20
 
 assert_contains "--compare with processes string: FCFS row present" "FCFS" \
-    --compare "--processes=A:0:100,B:5:50,C:10:200" --quantum=20
+    --compare "--processes=A,0,100 B,5,50 C,10,200" --quantum=20
 
 assert_contains "--compare with processes string: MLFQ row present" "MLFQ" \
-    --compare "--processes=A:0:100,B:5:50,C:10:200" --quantum=20
+    --compare "--processes=A,0,100 B,5,50 C,10,200" --quantum=20
 
 assert_contains "--compare with processes string: RR shows quantum" "q=" \
-    --compare "--processes=A:0:100,B:5:50,C:10:200" --quantum=20
+    --compare "--processes=A,0,100 B,5,50 C,10,200" --quantum=20
 
 if [[ -f "$WL1" ]]; then
     assert_contains "--compare with workload1.txt: all 5 algorithms" "STCF" \
@@ -371,41 +371,41 @@ header "9. Edge Cases"
 # Single process
 for algo in FCFS SJF STCF RR MLFQ; do
     assert_contains "Single process, $algo" "Summary" \
-        --algorithm="$algo" "--processes=Solo:0:42"
+        --algorithm="$algo" "--processes=Solo,0,42"
 done
 
 # All processes arrive at the same time
 assert_contains "Simultaneous arrivals (FCFS)" "Summary" \
-    --algorithm=FCFS "--processes=A:0:10,B:0:20,C:0:30,D:0:40"
+    --algorithm=FCFS "--processes=A,0,10 B,0,20 C,0,30 D,0,40"
 
 assert_contains "Simultaneous arrivals (STCF)" "Summary" \
-    --algorithm=STCF "--processes=A:0:10,B:0:20,C:0:30,D:0:40"
+    --algorithm=STCF "--processes=A,0,10 B,0,20 C,0,30 D,0,40"
 
 # Process with burst=1 (minimum burst)
 assert_contains "Burst=1 process (RR q=10)" "Summary" \
-    --algorithm=RR --quantum=10 "--processes=Tiny:0:1,Big:0:100"
+    --algorithm=RR --quantum=10 "--processes=Tiny,0,1 Big,0,100"
 
 # Processes arriving in reverse order of burst (worst case for SJF readiness)
 assert_contains "Reverse burst order (SJF)" "Summary" \
-    --algorithm=SJF "--processes=A:0:100,B:1:10,C:2:5"
+    --algorithm=SJF "--processes=A,0,100 B,1,10 C,2,5"
 
 # Staggered arrivals spread over a wide range
 assert_contains "Widely staggered arrivals (FCFS)" "Summary" \
-    --algorithm=FCFS "--processes=X:0:10,Y:100:10,Z:500:10"
+    --algorithm=FCFS "--processes=X,0,10 Y,100,10 Z,500,10"
 
 assert_contains "Widely staggered arrivals (MLFQ)" "Summary" \
-    --algorithm=MLFQ "--processes=X:0:10,Y:100:10,Z:500:10"
+    --algorithm=MLFQ "--processes=X,0,10 Y,100,10 Z,500,10"
 
 # RR quantum larger than all burst times → each process runs once
 assert_contains "RR quantum > all bursts (single pass)" "Summary" \
-    --algorithm=RR --quantum=9999 "--processes=A:0:10,B:0:20,C:0:30"
+    --algorithm=RR --quantum=9999 "--processes=A,0,10 B,0,20 C,0,30"
 
 # ---------------------------------------------------------------------------
 # 10. Metrics sanity checks
 # ---------------------------------------------------------------------------
 header "10. Metrics Sanity"
 
-SANITY_PROCS="A:0:50,B:10:30,C:20:80"
+SANITY_PROCS="A,0,50 B,10,30 C,20,80"
 
 # avg turnaround > 0
 for algo in FCFS SJF STCF MLFQ; do
@@ -444,7 +444,7 @@ done
 # MLFQ is excluded: its periodic priority-boost mechanism re-enqueues the running
 # process even when only one process exists, so CS > 0 is correct behaviour.
 for algo in FCFS SJF STCF; do
-    MOUT=$(run --algorithm="$algo" "--processes=One:0:100")
+    MOUT=$(run --algorithm="$algo" "--processes=One,0,100")
     CS=$(echo "$MOUT" | grep -oP 'Context switches\s*:\s*\K[0-9]+' | head -1 || true)
     if [[ "$CS" == "0" ]]; then
         pass "$algo: context switches = 0 for single process"
@@ -456,7 +456,7 @@ done
 # MLFQ single process: priority boosts fire periodically and re-enqueue the
 # running process, so CS > 0 is expected. We just verify the field is present
 # and is a valid non-negative integer (i.e. the scheduler ran and reported it).
-MOUT=$(run --algorithm=MLFQ "--processes=One:0:100")
+MOUT=$(run --algorithm=MLFQ "--processes=One,0,100")
 CS=$(echo "$MOUT" | grep -oP 'Context switches\s*:\s*\K[0-9]+' | head -1 || true)
 if [[ -n "$CS" ]]; then
     pass "MLFQ: context switches field present for single process (got $CS; boosts fire even with 1 process)"
@@ -469,7 +469,7 @@ fi
 # ---------------------------------------------------------------------------
 header "11. Determinism"
 
-DET_PROCS="A:0:40,B:5:20,C:15:60,D:25:10"
+DET_PROCS="A,0,40 B,5,20 C,15,60 D,25,10"
 
 for algo in FCFS SJF STCF MLFQ; do
     OUT1=$(run --algorithm="$algo" "--processes=$DET_PROCS")
@@ -488,6 +488,80 @@ if [[ "$OUT1" == "$OUT2" ]]; then
 else
     fail "RR: non-deterministic output"
 fi
+
+# ---------------------------------------------------------------------------
+# 12. Negative / malformed input — simulator must exit non-zero with stderr
+# ---------------------------------------------------------------------------
+header "12. Negative & Malformed Input"
+
+# Helper: assert that the binary exits non-zero AND prints to stderr.
+assert_fails_cleanly() {
+    local desc="$1"; shift
+    local actual_exit stderr_out
+    stderr_out=$("$BIN" "$@" 2>&1 >/dev/null)
+    actual_exit=$?
+    if [[ "$actual_exit" -ne 0 ]] && [[ -n "$stderr_out" ]]; then
+        pass "$desc  (exit=$actual_exit, stderr='${stderr_out:0:80}')"
+    elif [[ "$actual_exit" -eq 0 ]]; then
+        fail "$desc  (expected non-zero exit, got 0)"
+    else
+        fail "$desc  (exited $actual_exit but no stderr message)"
+    fi
+}
+
+# Negative burst time
+assert_fails_cleanly "Negative burst time" \
+    --algorithm=FCFS "--processes=Bad,0,-5"
+
+# Zero burst time (must be >= 1)
+assert_fails_cleanly "Zero burst time" \
+    --algorithm=FCFS "--processes=Bad,0,0"
+
+# Negative arrival time
+assert_fails_cleanly "Negative arrival time" \
+    --algorithm=FCFS "--processes=Bad,-1,10"
+
+# Non-numeric burst time
+assert_fails_cleanly "Non-numeric burst time" \
+    --algorithm=FCFS "--processes=Bad,0,abc"
+
+# Non-numeric arrival time
+assert_fails_cleanly "Non-numeric arrival time" \
+    --algorithm=FCFS "--processes=Bad,xyz,10"
+
+# Completely empty process string
+assert_fails_cleanly "Empty --processes string" \
+    --algorithm=FCFS "--processes= "
+
+# Missing burst field (only two comma-separated fields)
+assert_fails_cleanly "Missing burst field in --processes token" \
+    --algorithm=FCFS "--processes=P1,0"
+
+# Non-existent input file
+assert_fails_cleanly "Non-existent input file" \
+    --algorithm=FCFS --input=/tmp/no_such_file_schedsim.txt
+
+# Malformed file (a line with only one field)
+MALFORMED_WL=$(mktemp /tmp/sched_malformed_XXXX.txt)
+echo "OnlyOneName" > "$MALFORMED_WL"
+assert_fails_cleanly "Malformed workload file (missing AT and BT)" \
+    --algorithm=FCFS "--input=$MALFORMED_WL"
+rm -f "$MALFORMED_WL"
+
+# Malformed file (negative burst via file)
+NEG_BT_WL=$(mktemp /tmp/sched_negbt_XXXX.txt)
+echo "P1 0 -5" > "$NEG_BT_WL"
+assert_fails_cleanly "Malformed workload file (negative burst via file)" \
+    --algorithm=FCFS "--input=$NEG_BT_WL"
+rm -f "$NEG_BT_WL"
+
+# Invalid --quantum (zero)
+assert_fails_cleanly "Invalid --quantum=0" \
+    --algorithm=RR --quantum=0 "--processes=A,0,10"
+
+# Invalid --quantum (non-numeric)
+assert_fails_cleanly "Invalid --quantum=abc" \
+    --algorithm=RR --quantum=abc "--processes=A,0,10"
 
 # ---------------------------------------------------------------------------
 # Results

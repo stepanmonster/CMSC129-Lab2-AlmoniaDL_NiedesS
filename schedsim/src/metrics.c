@@ -50,5 +50,5 @@ void print_summary(SummaryMetrics *s) {
     printf("Avg Turnaround : %.2f\n", s->avg_turnaround);
     printf("Avg Waiting    : %.2f\n", s->avg_waiting);
     printf("Avg Response   : %.2f\n", s->avg_response);
-    printf("Context Switches: %d\n",  s->context_switches);
+    printf("Context switches: %d\n",  s->context_switches);
 }

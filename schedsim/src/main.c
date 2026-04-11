@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+#include <limits.h>
 #include "../include/scheduler.h"
 #include "../include/process.h"
 
@@ -411,12 +413,22 @@ int main(int argc, char *argv[]) {
         else if (strncmp(argv[i], "--input=",     8)  == 0) input_file  = argv[i] + 8;
         else if (strncmp(argv[i], "--processes=", 12) == 0) process_str = argv[i] + 12;
         else if (strncmp(argv[i], "--algorithm=", 12) == 0) algo_name   = argv[i] + 12;
-        else if (strncmp(argv[i], "--quantum=",   10) == 0) quantum     = atoi(argv[i] + 10);
+        else if (strncmp(argv[i], "--quantum=",   10) == 0) {
+            char *endptr;
+            errno = 0;
+            long q = strtol(argv[i] + 10, &endptr, 10);
+            if (errno != 0 || endptr == argv[i] + 10 || *endptr != '\0' || q < 1) {
+                fprintf(stderr, "Error: --quantum value '%s' must be a positive integer\n",
+                        argv[i] + 10);
+                return 1;
+            }
+            quantum = (int)q;
+        }
     }
 
     if (compare) {
         if (!input_file && !process_str) {
-            fprintf(stderr, "Usage: %s --compare (--input=<file> | --processes=\"...\") [--quantum=<n>]\n", argv[0]);
+            fprintf(stderr, "Usage: %s --compare (--input=<file> | --processes=\"P1,0,5 P2,2,3\") [--quantum=<n>]\n", argv[0]);
             return 1;
         }
         run_comparison(input_file, process_str, quantum);
@@ -424,8 +436,8 @@ int main(int argc, char *argv[]) {
     }
 
     if (!algo_name || (!input_file && !process_str)) {
-        fprintf(stderr, "Usage: %s --algorithm=<ALGO> (--input=<file> | --processes=\"PID:Arr:Burst,...\") [--quantum=<n>]\n", argv[0]);
-        fprintf(stderr, "       %s --compare          (--input=<file> | --processes=\"PID:Arr:Burst,...\") [--quantum=<n>]\n", argv[0]);
+        fprintf(stderr, "Usage: %s --algorithm=<ALGO> (--input=<file> | --processes=\"P1,0,5 P2,2,3\") [--quantum=<n>]\n", argv[0]);
+        fprintf(stderr, "       %s --compare          (--input=<file> | --processes=\"P1,0,5 P2,2,3\") [--quantum=<n>]\n", argv[0]);
         return 1;
     }
 

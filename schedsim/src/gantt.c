@@ -27,7 +27,8 @@ void gantt_add(GanttChart *g, const char *pid, int start, int end) {
         g->entries = tmp;
     }
 
-    strncpy(g->entries[g->count].pid, pid, 15);
+    strncpy(g->entries[g->count].pid, pid, sizeof(g->entries[g->count].pid) - 1);
+    g->entries[g->count].pid[sizeof(g->entries[g->count].pid) - 1] = '\0';
     g->entries[g->count].start = start;
     g->entries[g->count].end   = end;
     g->count++;
